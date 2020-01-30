@@ -3,8 +3,8 @@ Enrico Verdolotti
 January/February 2020, 
 Final project for parallel and distributed computing course
 
-  # Molecular Dynamics with CUDA
-  ## meta-project
+# Molecular Dynamics with CUDA
+## meta-project
 
 This project will be based on a previous work of Emily Crabb, publicly
 available at: <https://github.com/ejc44/MD>. The main objective is to successfully
@@ -61,7 +61,7 @@ In conclusion some of the original project, such as distributed
 computing, part will not be considered even if these was written with
 `@parallel` macro that is no longer supported and this would need a code
 rewriting. That choice has been done due to the low score obtained for
-distributed version in original code, and lack of time, but that doesn't
+distributed version in original code and lack of time but that doesn't
 mean it cannot be resumed in future.
 
-*"We adore chaos because we love to produce order."* -- *M.C. Escher*
+> *"We adore chaos because we love to produce order."* -- *M.C. Escher*

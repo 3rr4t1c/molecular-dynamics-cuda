@@ -1,0 +1,46 @@
+\documentclass[11pt, a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{listings}
+
+
+\title{Molecular Dynamics with CUDA\\ \large{meta-project}}
+\author{Enrico Verdolotti}
+\date{January/February 2020 }
+
+\setlength{\parindent}{1em}
+\setlength{\parskip}{1em}
+\geometry{margin=2cm, top=0cm, bottom=0cm}
+\pagenumbering{gobble}
+
+\begin{document}
+
+\maketitle
+
+This project will be based on a previous work of Emily Crabb, publicly available at:\\ \url{https://github.com/ejc44/MD}. The main objective is to successfully implement the same algorithms and specifications, harnessing GPU multi-threading capability and in particular, exploiting CUDA toolkit. Moreover will be done some review of the original code and introduced new stuffs as described below.\par
+The envisioned steps are:
+
+\begin{enumerate}
+    \item Review and rewrite \textbf{serial} version;
+    \item Write \textbf{GPU multi-thread} version with \textbf{CUDA};
+    \item Review and rewrite \textbf{CPU multi-thread} version;
+    \item \textbf{Benchmark} and comparisons;
+    \item New \textbf{animated visualization}.
+\end{enumerate}
+
+Two years are passed from the original work so the revision of \textbf{serial} version will be done mainly for better understanding of algorithm, data structures involved, entire workflow and, possibly for old-code revision using new constructs that maybe was not available in the previous version of Julia, taking the opportunity for refactoring and finding bottlenecks (e.g. the "find forces" function, re-allocate for each time step the entire forces "array" and maybe this can be avoided.) \par
+
+In the original work, the \textbf{GPU version} implementation was left incomplete due to the complexity of main functions which contains several conditionals check. That make hard to write GPU code using just built-in functions and CuArrays. The idea for addressing this problem is to write an ad hoc kernel function capable to run on GPU along with the classic CuArrays usage. \par
+
+It would be nice to have a \textbf {CPU multi-thread} version more similar to GPU version for comparisons and even if the common workflow for developing multi-threaded code is to write first CPU multi-thread version and then the GPU one, in this case will be done in reverse due to two reasons: First, the multi thread CPU code is already available and working and, second, to adapt a kernel function to CPU or GPU from the respective counterpart is relatively easy. \par
+
+As ever, will be mandatory to test if a real speedup has been achieved. For this reason,\\ \textbf{BenchmarkTools} package will be used to compare both current results and original ones. \par
+
+Lastly, a more expressive \textbf{visualization} of particle motion will be explored using classic Plot library or Makie for 3D animations. \par
+
+In conclusion some of the original project, such as distributed computing, part will not be considered even if these was written with \texttt{@parallel} macro that is no longer supported and this would need a code rewriting. That choice has been done due to the low score obtained for distributed version in original code and lack of time but that doesn't mean it cannot be resumed in future.\par
+
+\flushright{\textit{``We adore chaos because we love to produce order.''} -- \emph{M.C. Escher}}
+
+\end{document}

@@ -29,7 +29,7 @@ The envisioned steps are:
     \item New \textbf{animated visualization}.
 \end{enumerate}
 
-Two years are passed from the original work so the revision of \textbf{serial} version will be done mainly for better understanding of algorithm, data structures involved, entire workflow and, possibly for old-code revision using new constructs that maybe was not available in the previous version of Julia, taking the opportunity for refactoring and finding bottlenecks (e.g. the "find forces" function, re-allocate for each time step the entire forces "array" and maybe this can be avoided.) \par
+Two years are passed since the original work so the revision of \textbf{serial} version will be done mainly for better understanding of algorithm, data structures involved, entire workflow and, possibly for old-code revision using new constructs that maybe was not available in the previous version of Julia, taking the opportunity for refactoring and finding bottlenecks (e.g. the "find forces" function, re-allocate for each time step the entire forces "array" and maybe this can be avoided.) \par
 
 In the original work, the \textbf{GPU version} implementation was left incomplete due to the complexity of main functions which contains several conditionals check. That make hard to write GPU code using just built-in functions and CuArrays. The idea for addressing this problem is to write an ad hoc kernel function capable to run on GPU along with the classic CuArrays usage. \par
 

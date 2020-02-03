@@ -1,5 +1,5 @@
 ---
-Enrico Verdolotti 
+Enrico Verdolotti, 
 January/February 2020, 
 Final project for parallel and distributed computing course
 
@@ -25,7 +25,7 @@ The envisioned steps are:
 
 5.  New **animated visualization**.
 
-Two years are passed from the original work so the revision of
+Two years are passed since the original work so the revision of
 **serial** version will be done mainly for better understanding of
 algorithm, data structures involved, entire workflow and, possibly for
 old-code revision using new constructs that maybe was not available in

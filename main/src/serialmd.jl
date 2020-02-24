@@ -4,7 +4,7 @@ module Serialmd
 # a = Array n-dimensionale
 function set_to_zero!(a)
     z = zero(eltype(a))
-    @simd for i in eachindex(a)
+    for i in eachindex(a)
         @inbounds a[i] = z
     end
     return nothing
@@ -58,13 +58,13 @@ function find_forces!(forces, pos, vel, acc, dim, part_num, part_types, interact
     set_to_zero!(forces)
     
     # Per ogni particella i
-    for i in 1:part_num        
+    @inbounds for i in 1:part_num        
         # Calcola la massa di i
         mass1 = mass_parts[part_types[i]] # La massa non veniva usata nel codice originale!
         # Per ogni altra particella k diversa da i
-        @views for k in 1:part_num
+        for k in 1:part_num
             # Controlla che non sia la stessa particella oppure bounds overflow
-            if (k == i || any(isinf, pos[k, :]) || any(isinf, pos[i, :])) continue end            
+            @views if (k == i || any(isinf, pos[k, :]) || any(isinf, pos[i, :])) continue end            
             mass2 = mass_parts[part_types[k]]
             # Forza d'interazione fra tipi di particelle
             int_strength = interaction_params[part_types[i], part_types[k]]           
@@ -79,10 +79,13 @@ function find_forces!(forces, pos, vel, acc, dim, part_num, part_types, interact
             distance = sqrt(distance)
                        
             # Formula della forza, arbitraria                
-            force_strength =  force_formula(distance, mass1, mass2, int_strength)
+            force_strength = force_formula(distance, mass1, mass2, int_strength)
                         
             # Assegna le forze agenti su ciascuna componente
-            forces[i, :] .+= dcomps .* force_strength
+            #forces[i, :] .+= dcomps .* force_strength
+            for d in 1:dim
+                forces[i, d] += dcomps[d] * force_strength
+            end
             
             # Re-inizializza a 0 per la prossima particella
             distance = .0f0 
@@ -90,7 +93,10 @@ function find_forces!(forces, pos, vel, acc, dim, part_num, part_types, interact
         end
         
         # Resistenza al movimento (simula attrito)
-        forces[i, :] .-= 0.5 .* drag .* vel[i, :] .* abs.(vel[i, :])  # formula arbitraria        
+        #forces[i, :] .-= 0.5 .* drag .* vel[i, :] .* abs.(vel[i, :])  # formula arbitraria
+        for d in 1:dim
+            forces[i, d] -= 0.5 * drag * vel[i, d] * abs(vel[i, d])
+        end
     end
     return nothing # Modifica C++ style
 end
@@ -116,9 +122,9 @@ function step_update!(forces, pos, vel, acc, dim, part_num, part_types, mass_par
     new_acc = .0f0 
     
     # Per ogni particella
-    for i = 1:part_num
+    @inbounds for i = 1:part_num
         # Controllo bounds overflow, non aggiorna particelle fuori dal valore massimo        
-        if (any(isinf, pos[i,:])) continue end
+        @views if (any(isinf, pos[i,:])) continue end
         # Massa della particella corrente
         mass = mass_parts[part_types[i]]
         # Per ogni componente
@@ -157,7 +163,7 @@ nothing
 function save!(now, trace, t)
     for r in 1:size(now, 1)
         for c in 1:size(now, 2)
-            trace[t, r, c] = now[r, c]
+            @inbounds trace[t, r, c] = now[r, c]
         end
     end
     return nothing
@@ -182,7 +188,7 @@ restrict = true se sistema vincolato
 OUTPUT:
 saved_positions 
 =====================================#
-function dynamics_sim!(nsteps, sinterval, dt, pos, vel, acc, masses, interactions, ptypes, box_size, periodic, restrict)
+function dynamics_sim!(nsteps, sinterval, track, dt, pos, vel, acc, masses, interactions, ptypes, box_size, periodic, restrict)
     
     # Determina il numero di particelle e la dimensionalità dello spazio
     part_num, dim = size(pos)
@@ -204,7 +210,7 @@ function dynamics_sim!(nsteps, sinterval, dt, pos, vel, acc, masses, interaction
         # aggiornamento step
         step_update!(forces, pos, vel, acc, dim, part_num, ptypes, masses, dt, box_size, periodic, restrict)
         # Salva posizioni
-        if (t-1) % sinterval == 0
+        if track && (t-1) % sinterval == 0
             save_count += 1
             save!(pos, saved_positions, save_count)            
         end        

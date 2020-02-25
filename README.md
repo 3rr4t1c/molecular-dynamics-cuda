@@ -65,3 +65,95 @@ distributed version in original code and lack of time but that doesn't
 mean it cannot be resumed in future.
 
 > *"We adore chaos because we love to produce order."* -- *M.C. Escher*
+
+---
+--- 
+---
+Enrico Verdolotti, 
+Gennaio/Febbraio 2020,
+Progetto finale per il corso di calcolo parallelo e distribuito 
+
+# Molecular Dynamics with CUDA
+## meta-progetto
+
+Questo progetto si baserà su un precdente lavoro di Emily Crabb,
+diponibile all'indirizzo: <https://github.com/ejc44/MD>. 
+L'obiettivo principale è implementare con successo gli stessi algoritmi e specifiche
+sfruttando le capacità di multi-threading della GPU ed in particolare con il toolkit CUDA.
+Inoltre verrà effettuata una revisione del codice originale ed introdotte delle novità
+come descritto a seguire.
+
+Le tappe previste sono:
+
+1.  Rivedere e riscrivere la versione **seriale**;
+
+2.  Scrivere la versione **GPU multi-thread** con **CUDA**;
+
+3.  Rivedere e riscrivere la versione **CPU multi-thread**;
+
+4.  **Benchmark** e comparazione delle prestazioni;
+
+5.  Nuove **visualizzazioni animate**.
+
+
+Sono trascorsi due anni dal lavoro originale, perciò la revisione
+della versione **seriale** sarà effettuata principalmente per una
+migliore comprensione degli algoritmi, strutture dati utilizzate,
+intero flusso di lavoro ed eventualmente revisione del vecchio codice,
+utilizzando nuovi costrutti che forse non erano disponibili nelle precedenti
+versioni di Julia, cogliendo l'opportunità per eseguire il refactoring
+e scoprire colli di bottiglia (e.g. la funzione \"find_forces\" ri-alloca
+ad ogni istante della simulazione l'intero \"array\" delle forze e forse
+questo può essere evitato.)
+
+
+Nel lavoro originale, l'implementazione della **versione GPU** è stata
+lasciata incompleta a causa della complessita della funzione principale che
+contien diversi controlli condizionali. Ciò rende difficile la scrittura di
+codice GPU utilizzando solo le funzioni integrate ed i CuArrays. L'idea per
+risolvere questo problema è di scrivere una funzione kernel apposita in grado 
+di girare sulla GPU assieme al classico uso dei CuArrays.
+
+
+Non sarebbe male avere una versione **CPU multi-thread** più simile alla versione
+GPU per confronto, ed anche se normalmente per sviluppare codice multi-threaded si 
+scrive prima la versione per CPU e poi quella per GPU in questo caso verrà fatto 
+il contrario per due ragioni: Primo, il codice multi thread è già disponibile e funzionante
+e, Secondo, adattare una funzione kernel alla GPU od alla CPU dalla rispettiva controparte
+è relativamente facile.
+
+
+Come sempre sarà obbligatorio testare se si è ottenuto un miglioramento effettivo.
+A questo scopo, verrà utilizzato il package **BenchmarkTools** per confrontare
+sia i risultati correnti che quelli originali.
+
+Infine, verrà esplorata una nuova possibilità di **visualizzazione**
+del moto delle particelle usando la classica libreria Plot oppure Makie 
+per le animazioni 3D.
+
+Concludendo, alcune parti del progetto originale, come la versione
+relativa al calcolo distribuito, non saranno cosiderate anche se sono
+state scritte con la macro `@parallel` che non è più supportata e perciò
+avrebbe bisogno di una riscrittura. Questa scelta viene fatta a causa del
+risultato negativo dei benchmark relativi alla versione distribuita del precedente 
+lavoro e per mancanza di tempo ma ciò non vuol dire che non possa essere 
+ripresa in futuro.
+
+> *"We adore chaos because we love to produce order."* -- *M.C. Escher*
+
+---
+---
+
+# Report
+
+### 1. Rivedere e riscrivere la versione seriale
+In scrittura...
+
+### 2. 
+
+### 3.
+
+### 4.
+
+### 5.
+

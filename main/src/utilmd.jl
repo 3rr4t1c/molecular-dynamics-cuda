@@ -2,9 +2,11 @@
 un sistema di simulazione, salvataggio su disco, generazione di dati random, visualizzazione
 =#
 module Utilmd
+
 using Serialization
 using Random
 using Plots
+
 
 # Funzioni per salvare e caricare da disco tutto il necessario
 # Per riavviare la simulazione
@@ -26,48 +28,6 @@ end
 # Carica da disco
 function disk_load(file_name)
     return deserialize(file_name)
-end
-
-
-# Generate strengths of interactions between particle types
-# Very simple but user could replace with anything they wanted
-# Genera le intensità delle interazioni fra tipologie di particelle
-# Modifiche: Cambio tipo da Float64 a Float32, inserito break perché matrice simmetrica
-function gen_interaction(num_part_types)
-    interaction_params = zeros(num_part_types, num_part_types)
-    rng = MersenneTwister()
-    for i=1:num_part_types
-        for j = 1:num_part_types
-            if (i==j) # Self-interaction is randomly repulsive
-                interaction_params[i, j] = -rand(rng, Float32)
-            elseif (i<j) # Others randomly attractive
-                val = rand(rng, Float32)
-                interaction_params[i,j] = val
-                interaction_params[j,i] = val
-            else
-                continue # Inserito continue, arresta il ciclo, matrice simmetrica
-            end
-        end        
-    end    
-    return interaction_params
-end
-
-
-# Genera dei dati random per avviare una simulazione
-function random_data(dim, part_num, num_part_types, box_size)
-    
-    # Costanti dipendenti dai parametri
-    interactions = gen_interaction(num_part_types) # parametri di interazione, matrice quadrata, num_part_types^2
-    #masses = rand(Float32, num_part_types) .* 0.9 .+ 0.1 # Massa per ogni tipo di particella, WARNING! NO MASSE NULLE!
-    masses = ceil.(rand(Float32, num_part_types) .* 3 .+ .1) # alternativa
-    ptypes = rand(1:num_part_types, part_num) # Tipologia di particella per ogni particella, array di Int
-      
-    # Variabili aggiornate ad ogni iterazione
-    pos = box_size.*rand(Float32, part_num, dim) # Initialized to be randomly placed within a box (Usare funzione?)
-    vel = zeros(Float32, part_num, dim) # Initialized to zero
-    acc = zeros(Float32, part_num, dim) # Initialized to zero
-
-    return pos, vel, acc, masses, interactions, ptypes
 end
 
 

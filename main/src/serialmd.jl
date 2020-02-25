@@ -1,13 +1,16 @@
 module Serialmd
 
-# Azzera l'array (o matrice) a, in-place
-# a = Array n-dimensionale
-function set_to_zero!(a)
-    z = zero(eltype(a))
-    for i in eachindex(a)
-        @inbounds a[i] = z
+using Random
+
+
+# Funzione ausiliaria per verificare se una posizione non è valida 
+function anyinfpos(i, pos, dim)
+    for d in 1:dim
+        if isinf(pos[i, d])
+            return true
+        end
     end
-    return nothing
+    return false
 end
 
 
@@ -55,8 +58,9 @@ function find_forces!(forces, pos, vel, acc, dim, part_num, part_types, interact
     # distance components, componenti della distanza per ciascun asse
     dcomps = Array{Float32}(undef, dim)       
     
-    set_to_zero!(forces)
-    
+    #set_to_zero!(forces)
+    forces .= 0.0
+
     # Per ogni particella i
     @inbounds for i in 1:part_num        
         # Calcola la massa di i
@@ -64,7 +68,8 @@ function find_forces!(forces, pos, vel, acc, dim, part_num, part_types, interact
         # Per ogni altra particella k diversa da i
         for k in 1:part_num
             # Controlla che non sia la stessa particella oppure bounds overflow
-            @views if (k == i || any(isinf, pos[k, :]) || any(isinf, pos[i, :])) continue end            
+            #@views if (k == i || any(isinf, pos[k, :]) || any(isinf, pos[i, :])) continue end
+            if (k == i || anyinfpos(i, pos, dim) || anyinfpos(k, pos, dim) ) continue end            
             mass2 = mass_parts[part_types[k]]
             # Forza d'interazione fra tipi di particelle
             int_strength = interaction_params[part_types[i], part_types[k]]           
@@ -76,7 +81,7 @@ function find_forces!(forces, pos, vel, acc, dim, part_num, part_types, interact
                 end
                 distance += dcomps[d]*dcomps[d]
             end
-            distance = sqrt(distance)
+            distance = @fastmath sqrt(distance)
                        
             # Formula della forza, arbitraria                
             force_strength = force_formula(distance, mass1, mass2, int_strength)
@@ -124,7 +129,8 @@ function step_update!(forces, pos, vel, acc, dim, part_num, part_types, mass_par
     # Per ogni particella
     @inbounds for i = 1:part_num
         # Controllo bounds overflow, non aggiorna particelle fuori dal valore massimo        
-        @views if (any(isinf, pos[i,:])) continue end
+        #@views if (any(isinf, pos[i,:])) continue end
+        if anyinfpos(i, pos, dim) continue end
         # Massa della particella corrente
         mass = mass_parts[part_types[i]]
         # Per ogni componente
@@ -219,5 +225,46 @@ function dynamics_sim!(nsteps, sinterval, track, dt, pos, vel, acc, masses, inte
     return saved_positions    
 end
 
+
+# Generate strengths of interactions between particle types
+# Very simple but user could replace with anything they wanted
+# Genera le intensità delle interazioni fra tipologie di particelle
+# Modifiche: Cambio tipo da Float64 a Float32, inserito break perché matrice simmetrica
+function gen_interaction(num_part_types)
+    interaction_params = zeros(num_part_types, num_part_types)
+    rng = MersenneTwister()
+    for i=1:num_part_types
+        for j = 1:num_part_types
+            if (i==j) # Self-interaction is randomly repulsive
+                interaction_params[i, j] = -rand(rng, Float32)
+            elseif (i<j) # Others randomly attractive
+                val = rand(rng, Float32)
+                interaction_params[i,j] = val
+                interaction_params[j,i] = val
+            else
+                continue # Inserito continue, arresta il ciclo, matrice simmetrica
+            end
+        end        
+    end    
+    return interaction_params
+end
+
+
+# Genera dei dati random per avviare una simulazione
+function random_data(dim, part_num, num_part_types, box_size)
+    
+    # Costanti dipendenti dai parametri
+    interactions = gen_interaction(num_part_types) # parametri di interazione, matrice quadrata, num_part_types^2
+    #masses = rand(Float32, num_part_types) .* 0.9 .+ 0.1 # Massa per ogni tipo di particella, WARNING! NO MASSE NULLE!
+    masses = ceil.(rand(Float32, num_part_types) .* 3 .+ .1) # alternativa
+    ptypes = rand(1:num_part_types, part_num) # Tipologia di particella per ogni particella, array di Int
+      
+    # Variabili aggiornate ad ogni iterazione
+    pos = box_size.*rand(Float32, part_num, dim) # Initialized to be randomly placed within a box (Usare funzione?)
+    vel = zeros(Float32, part_num, dim) # Initialized to zero
+    acc = zeros(Float32, part_num, dim) # Initialized to zero
+
+    return pos, vel, acc, masses, interactions, ptypes
+end
 
 end # Fine modulo Serialmd

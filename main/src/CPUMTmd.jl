@@ -47,22 +47,23 @@ le posizioni uscenti dal box ad ogni iterazione. =#
 # Find force on each particle
 # 1/r^2 interactions: Is very simple but user can replace with anything they want
 function find_forces!(forces, pos, vel, acc, dim, part_num, part_types, interaction_params, mass_parts, box_size, periodic, restrict)
-    # Alloca variabili per i loop
-    mass1 = .0f0 # Massa particella i
-    mass2 = .0f0 # Massa particella k
-    int_strength = .0f0 # Forza di interazione
-    distance = .0f0 # Distanza fra i e k
-    drag = 0.6f0 # Forza d'attrito
-    force_strength = .0f0 # Forza esercitata da k su i
     
-    # distance components, componenti della distanza per ciascun asse
-    dcomps = Array{Float32}(undef, dim)       
+    # Azzera forze iniziali
+    forces .= .0f0
     
-    #set_to_zero!(forces)
-    forces .= 0.0
+    # Coefficiente d'attrito
+    drag = .6f0 
 
     # Per ogni particella i
-    @threads for i in 1:part_num        
+    @threads for i in 1:part_num
+        
+        # Alloca variabili per il thread corrente
+        mass1 = .0f0 # Massa particella i
+        mass2 = .0f0 # Massa particella k
+        int_strength = .0f0 # Forza di interazione
+        distance = .0f0 # Distanza fra i e k        
+        force_strength = .0f0 # Forza esercitata da k su i
+
         @inbounds begin
             # Calcola la massa di i
             mass1 = mass_parts[part_types[i]] # La massa non veniva usata nel codice originale!
@@ -75,11 +76,11 @@ function find_forces!(forces, pos, vel, acc, dim, part_num, part_types, interact
                 int_strength = interaction_params[part_types[i], part_types[k]]           
                 # Per ogni componente d calcola la distanza (in base al sistema scelto)
                 for d in 1:dim
-                    dcomps[d] = pos[k, d] - pos[i, d]
+                    dcomp = pos[k, d] - pos[i, d]
                     if periodic 
-                        dcomps[d] = periodic_dcomp(dcomps[d], box_size, restrict)
+                        dcomp = periodic_dcomp(dcomp, box_size, restrict)
                     end
-                    distance += dcomps[d]*dcomps[d]
+                    distance += dcomp*dcomp
                 end
                 distance = @fastmath sqrt(distance)
                         
@@ -89,12 +90,14 @@ function find_forces!(forces, pos, vel, acc, dim, part_num, part_types, interact
                 # Assegna le forze agenti su ciascuna componente
                 #forces[i, :] .+= dcomps .* force_strength
                 for d in 1:dim
-                    forces[i, d] += dcomps[d] * force_strength
+                    dcomp = pos[k, d] - pos[i, d]
+                    forces[i, d] += dcomp * force_strength
                 end
                 
                 # Re-inizializza a 0 per la prossima particella
                 distance = .0f0 
                 force_strength = .0f0
+
             end
             
             # Resistenza al movimento (simula attrito)
@@ -102,6 +105,7 @@ function find_forces!(forces, pos, vel, acc, dim, part_num, part_types, interact
             for d in 1:dim
                 forces[i, d] -= 0.5 * drag * vel[i, d] * abs(vel[i, d])
             end
+
         end
     end
     return nothing # Modifica C++ style
@@ -196,7 +200,19 @@ restrict = true se sistema vincolato
 OUTPUT:
 saved_positions 
 =====================================#
-function dynamics_sim!(nsteps, sinterval, track, dt, pos, vel, acc, masses, interactions, ptypes, box_size, periodic, restrict)
+function dynamics_sim!(nsteps::Int, 
+                       sinterval::Int,
+                       track::Bool, 
+                       dt::Float32, 
+                       pos::Array{Float32,2},
+                       vel::Array{Float32,2},
+                       acc::Array{Float32,2},
+                       masses::Array{Float32,1},
+                       interactions::Array{Float32,2},
+                       ptypes::Array{Int,1},
+                       box_size::Float32,
+                       periodic::Bool,
+                       restrict::Bool)
     
     # Determina il numero di particelle e la dimensionalità dello spazio
     part_num, dim = size(pos)
@@ -233,14 +249,14 @@ end
 # Genera le intensità delle interazioni fra tipologie di particelle
 # Modifiche: Cambio tipo da Float64 a Float32, inserito break perché matrice simmetrica
 function gen_interaction(num_part_types)
-    interaction_params = zeros(num_part_types, num_part_types)
+    interaction_params = zeros(Float32, num_part_types, num_part_types)
     rng = MersenneTwister()
-    for i=1:num_part_types
-        for j = 1:num_part_types
+    for i in 1:num_part_types
+        for j in 1:num_part_types
             if (i==j) # Self-interaction is randomly repulsive
-                interaction_params[i, j] = -rand(rng, Float32)
+                interaction_params[i, j] = -rand(rng)
             elseif (i<j) # Others randomly attractive
-                val = rand(rng, Float32)
+                val = rand(rng)
                 interaction_params[i,j] = val
                 interaction_params[j,i] = val
             else
@@ -258,11 +274,11 @@ function random_data(dim, part_num, num_part_types, box_size)
     # Costanti dipendenti dai parametri
     interactions = gen_interaction(num_part_types) # parametri di interazione, matrice quadrata, num_part_types^2
     #masses = rand(Float32, num_part_types) .* 0.9 .+ 0.1 # Massa per ogni tipo di particella, WARNING! NO MASSE NULLE!
-    masses = ceil.(rand(Float32, num_part_types) .* 3 .+ .1) # alternativa
+    masses = ceil.(rand(Float32, num_part_types) .* 3 .+ .1f0) # alternativa
     ptypes = rand(1:num_part_types, part_num) # Tipologia di particella per ogni particella, array di Int
       
     # Variabili aggiornate ad ogni iterazione
-    pos = box_size.*rand(Float32, part_num, dim) # Initialized to be randomly placed within a box (Usare funzione?)
+    pos = box_size .* rand(Float32, part_num, dim) # Initialized to be randomly placed within a box (Usare funzione?)
     vel = zeros(Float32, part_num, dim) # Initialized to zero
     acc = zeros(Float32, part_num, dim) # Initialized to zero
 

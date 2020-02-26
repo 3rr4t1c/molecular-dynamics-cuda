@@ -31,6 +31,7 @@ function periodic_dcomp(dcomp, box_size, restricted)
     end
 end
 
+
 # Formula della forza utilizzata
 function force_formula(distance, mass1, mass2, int_strength)
     # Distanza minima consentita, evita distanze nulle: a questa distanza le forze si annullano
@@ -47,8 +48,9 @@ end
 le posizioni uscenti dal box ad ogni iterazione. =#
 # Find force on each particle
 # 1/r^2 interactions: Is very simple but user can replace with anything they want
-function find_forces!(dcomps, forces, pos, vel, acc, dim, part_num, part_types, interaction_params, mass_parts, box_size, periodic, restrict)
-    # Per kernel function CUDA
+function find_forces!(forces, pos, vel, acc, dim, part_num, part_types, interaction_params, mass_parts, box_size, periodic, restrict)
+    
+    # Kernel function CUDA
     index = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     stride = blockDim().x * gridDim().x    
     
@@ -56,10 +58,11 @@ function find_forces!(dcomps, forces, pos, vel, acc, dim, part_num, part_types, 
     mass1 = .0f0 # Massa particella i
     mass2 = .0f0 # Massa particella k
     int_strength = .0f0 # Forza di interazione
-    distance = .0f0 # Distanza fra i e k
-    drag = 0.6f0 # Forza d'attrito
+    distance = .0f0 # Distanza fra i e k    
     force_strength = .0f0 # Forza esercitata da k su i
-       
+    dcomp = .0f0 # Componente della distanza su asse d
+    drag = .6f0 # Coefficiente d'attrito
+    
     # Per ogni particella i
     for i in index:stride:part_num        
         # Calcola la massa di i
@@ -73,12 +76,14 @@ function find_forces!(dcomps, forces, pos, vel, acc, dim, part_num, part_types, 
             int_strength = interaction_params[part_types[i], part_types[k]]           
             # Per ogni componente d calcola la distanza (in base al sistema scelto)
             for d in 1:dim
-                dcomps[d] = pos[k, d] - pos[i, d]
+                #dcomps[d] = pos[k, d] - pos[i, d]
+                dcomp = pos[k, d] - pos[i, d]
                 if periodic 
-                    dcomps[d] = periodic_dcomp(dcomps[d], box_size, restrict)
+                    dcomp = periodic_dcomp(dcomp, box_size, restrict)
                 end
-                distance += dcomps[d]*dcomps[d]
+                distance += dcomp*dcomp
             end
+
             distance = @fastmath sqrt(distance)
                        
             # Formula della forza, arbitraria                
@@ -87,12 +92,14 @@ function find_forces!(dcomps, forces, pos, vel, acc, dim, part_num, part_types, 
             # Assegna le forze agenti su ciascuna componente
             #forces[i, :] .+= dcomps .* force_strength
             for d in 1:dim
-                forces[i, d] += dcomps[d] * force_strength
+                dcomp = pos[k, d] - pos[i, d]
+                forces[i, d] += dcomp * force_strength
             end
             
             # Re-inizializza a 0 per la prossima particella
             distance = .0f0 
             force_strength = .0f0
+
         end
         
         # Resistenza al movimento (simula attrito)
@@ -100,6 +107,7 @@ function find_forces!(dcomps, forces, pos, vel, acc, dim, part_num, part_types, 
         for d in 1:dim
             forces[i, d] -= 0.5 * drag * vel[i, d] * abs(vel[i, d])
         end
+
     end
     return nothing # Modifica C++ style
 end
@@ -120,7 +128,8 @@ end
 # Can deal with infinite and finite systems
 # For finite system, can be periodic or can reflect off walls
 function step_update!(forces, pos, vel, acc, dim, part_num, part_types, mass_parts, dt, box_size, periodic, restrict)
-    # Per kernel function CUDA
+    
+    # Kernel function CUDA
     index = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     stride = blockDim().x * gridDim().x
 
@@ -196,14 +205,26 @@ restrict = true se sistema vincolato
 OUTPUT:
 saved_positions 
 =====================================#
-function dynamics_sim!(nsteps, sinterval, track, dt, pos, vel, acc, masses, interactions, ptypes, box_size, periodic, restrict)
+function dynamics_sim!(cuThreads::Int,
+                       nsteps::Int,
+                       sinterval::Int,
+                       track::Bool,
+                       dt::Float32,
+                       pos::CuArray{Float32,2},
+                       vel::CuArray{Float32,2},
+                       acc::CuArray{Float32,2},
+                       masses::CuArray{Float32,1},
+                       interactions::CuArray{Float32,2},
+                       ptypes::CuArray{Int,1},
+                       box_size::Float32,
+                       periodic::Bool,
+                       restrict::Bool)
 
     # Determina il numero di particelle e la dimensionalità dello spazio
     part_num, dim = size(pos)
     
     # CUDA
-    numthreads = 512
-    numblocks = ceil(Int, part_num/numthreads)
+    numblocks = ceil(Int, part_num/cuThreads)
         
     # Variabili per il salvataggio
     saves_num = nsteps ÷ sinterval # Numero di posizioni da salvare
@@ -211,30 +232,30 @@ function dynamics_sim!(nsteps, sinterval, track, dt, pos, vel, acc, masses, inte
     
     # Le forze da ri-calcolare in ogni istante
     forces = CuArray{Float32}(undef, part_num, dim) # Viene azzerato all'inizio di ogni ciclo
-
-    # distance components, componenti della distanza per ciascun asse
-    dcomps = CuArray{Float32}(undef, dim)
     
     # contatore salvataggi
     save_count = 0    
     
     # Loop per ciascun istante di tempo
     for t in 1:nsteps
+
         #set_to_zero!(forces) # Portata fuori dal kernel find_forces!
         forces .= .0f0 
+
         # Calcola forze agenti su ciascuna particella, (todo: parametri superflui part_num, part_types?)
-        @cuda threads=numthreads blocks=numblocks find_forces!(dcomps, forces, pos, vel, acc, dim, part_num, ptypes,
-                                                               interactions, masses, box_size, periodic, restrict)
+        @cuda threads=cuThreads blocks=numblocks find_forces!(forces, pos, vel, acc, dim, part_num, ptypes,
+                                                              interactions, masses, box_size, periodic, restrict)
         
         # aggiornamento step
-        @cuda threads=numthreads blocks=numblocks step_update!(forces, pos, vel, acc, dim, part_num, ptypes, 
-                                                               masses, dt, box_size, periodic, restrict)
+        @cuda threads=cuThreads blocks=numblocks step_update!(forces, pos, vel, acc, dim, part_num, ptypes, 
+                                                              masses, dt, box_size, periodic, restrict)
         
-        # Salva posizioni
+        # Salva posizioni <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<Slow performance on CUDA da rivedere
         if track && (t-1) % sinterval == 0
             save_count += 1
             save!(pos, saved_positions, save_count)            
-        end        
+        end
+
     end
     # Restituisci le posizioni delle particelle in ogni istante di tempo
     return saved_positions    
@@ -246,14 +267,14 @@ end
 # Genera le intensità delle interazioni fra tipologie di particelle
 # Modifiche: Cambio tipo da Float64 a Float32, inserito break perché matrice simmetrica
 function gen_interaction(num_part_types)
-    interaction_params = zeros(num_part_types, num_part_types)
+    interaction_params = zeros(Float32, num_part_types, num_part_types)
     rng = MersenneTwister()
     for i=1:num_part_types
         for j = 1:num_part_types
             if (i==j) # Self-interaction is randomly repulsive
-                interaction_params[i, j] = -rand(rng, Float32)
+                interaction_params[i, j] = -rand(rng)
             elseif (i<j) # Others randomly attractive
-                val = rand(rng, Float32)
+                val = rand(rng)
                 interaction_params[i,j] = val
                 interaction_params[j,i] = val
             else
@@ -271,7 +292,7 @@ function random_data(dim, part_num, num_part_types, box_size)
     # Costanti dipendenti dai parametri
     interactions = CuArray(gen_interaction(num_part_types)) # parametri di interazione, matrice quadrata, num_part_types^2
     #masses = rand(Float32, num_part_types) .* 0.9 .+ 0.1 # Massa per ogni tipo di particella, WARNING! NO MASSE NULLE!
-    masses = CuArray(ceil.(rand(Float32, num_part_types) .* 3 .+ .1)) # alternativa
+    masses = CuArray(ceil.(rand(Float32, num_part_types) .* 3 .+ .1f0)) # alternativa
     ptypes = CuArray(rand(1:num_part_types, part_num)) # Tipologia di particella per ogni particella, array di Int
       
     # Variabili aggiornate ad ogni iterazione

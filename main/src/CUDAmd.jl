@@ -230,24 +230,26 @@ function dynamics_sim!(cuThreads::Int,
     for t in 1:nsteps
 
         #set_to_zero!(forces) # Portata fuori dal kernel find_forces!
-        CuArrays.@sync forces .= .0f0
+        #CuArrays.@sync forces .= .0f0
+        forces .= .0f0
 
         # Calcola forze agenti su ciascuna particella, (todo: parametri superflui part_num, part_types?)
-        CuArrays.@sync begin # Attendi che la funzione kernel abbia terminato
+        #CuArrays.@sync begin # Attendi che la funzione kernel abbia terminato
             @cuda threads=cuThreads blocks=numblocks find_forces!(forces, pos, vel, acc, dim, part_num, ptypes,
                                                                   interactions, masses, box_size, periodic, restrict)
-        end
+        #end
         
         # Aggiornamento posizioni, velocità ed accelerazioni
-        CuArrays.@sync begin
+        #CuArrays.@sync begin
             @cuda threads=cuThreads blocks=numblocks step_update!(forces, pos, vel, acc, dim, part_num, ptypes, 
                                                                   masses, dt, box_size, periodic, restrict)
-        end
+        #end
         
         # Salva posizioni
         if track && (t-1) % sinterval == 0
             save_count += 1
-            CuArrays.@sync saved_positions[save_count,:,:] .= pos           
+            #CuArrays.@sync saved_positions[save_count,:,:] .= pos
+            saved_positions[save_count,:,:] .= pos           
         end
 
     end

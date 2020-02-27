@@ -29,9 +29,9 @@ false se la particella è libera di muoversi ma interagisce con le repliche virt
 function periodic_dcomp(dcomp, box_size, restricted)
 
     if restricted
-        return dcomp - round(dcomp / box_size) * box_size
+        return @fastmath dcomp - round(dcomp / box_size) * box_size
     else
-        return dcomp - round(dcomp * (1.0f0 / box_size)) * box_size
+        return @fastmath dcomp - round(dcomp * (1.0f0 / box_size)) * box_size
     end
 
 end
@@ -40,14 +40,14 @@ end
 #= Formula della forza, può essere reimplementata a piacimento
 Viene utilizzata in find_forces!
 ===========================================================#
-function force_formula(distance, mass1, mass2, int_strength)
-    # Distanza minima consentita, evita distanze nulle: a questa distanza le forze si annullano
-    min_distance = .01f0
+function force_formula(distance, mass1, mass2, int_strength, min_distance)
+
     if distance > min_distance
-        return int_strength * (1.0f0/(distance*distance))
+        return @fastmath int_strength * (1.0f0 / (distance*distance))
     else
         return .0f0
     end
+
 end
 
 
@@ -62,6 +62,7 @@ function find_forces!(forces, pos, vel, acc, dim, part_num, part_types, interact
 
     # Costanti
     drag = 0.6f0 # Coefficiente d'attrito
+    min_distance = .01f0 # Distanza minima consentita
 
     # Alloca variabili per i loop
     mass1 = .0f0 # Massa particella i
@@ -93,7 +94,7 @@ function find_forces!(forces, pos, vel, acc, dim, part_num, part_types, interact
             distance = @fastmath sqrt(distance)
                        
             # Formula della forza, arbitraria                
-            force_strength = force_formula(distance, mass1, mass2, int_strength)
+            force_strength = force_formula(distance, mass1, mass2, int_strength, min_distance)
                         
             # Assegna le forze agenti su ciascuna componente
             #forces[i, :] .+= dcomps .* force_strength
@@ -113,7 +114,7 @@ function find_forces!(forces, pos, vel, acc, dim, part_num, part_types, interact
         # Resistenza al movimento (simula attrito)
         #forces[i, :] .-= 0.5 .* drag .* vel[i, :] .* abs.(vel[i, :])  # formula arbitraria
         for d in 1:dim
-            forces[i, d] -= .5f0 * drag * vel[i, d] * abs(vel[i, d])
+            forces[i, d] -= @fastmath .5f0 * drag * vel[i, d] * abs(vel[i, d])
         end
 
     end
@@ -129,7 +130,7 @@ end
 =================================#
 function restrict_pos(p, box_size)
 
-    return p - floor(p / box_size) * box_size
+    return @fastmath p - floor(p / box_size) * box_size
 
 end
 
@@ -138,10 +139,13 @@ end
 Ogni sistema è considerato finito, per modellare un sistema infinito basta impostare restrict a false.
 ====================================================================================================================#
 function step_update!(forces, pos, vel, acc, dim, part_num, part_types, mass_parts, dt, box_size, periodic, restrict)
-
+    
+    # Costanti
+    bounce = .8f0 # 1 per rimbalzi perfettamente elastici
+    
     # Alloca variabili di loop
     mass = .0f0    
-    new_acc = .0f0 
+    new_acc = .0f0
     
     # Per ogni particella
     @inbounds for i = 1:part_num
@@ -153,13 +157,12 @@ function step_update!(forces, pos, vel, acc, dim, part_num, part_types, mass_par
         # Per ogni componente
         for d = 1:dim                     
             # Algoritmo Velocity Verlet            
-            pos[i, d] = pos[i, d] + vel[i, d]*dt + acc[i, d]*(dt*dt*.5f0) # x(t+Δt) = x(t) + v(t)Δt + 1/2*a(t)(Δt)^2            
+            pos[i, d] = @fastmath pos[i, d] + vel[i, d]*dt + acc[i, d]*(dt*dt*.5f0) # x(t+Δt) = x(t) + v(t)Δt + 1/2*a(t)(Δt)^2            
             new_acc = forces[i, d] / mass                      
-            vel[i, d] = vel[i, d] + (acc[i, d] + new_acc)*(dt*.5f0) # v(t+Δt) = v(t) + 1/2*(a(t)+a(t+Δt))Δt
+            vel[i, d] = @fastmath vel[i, d] + (acc[i, d] + new_acc)*(dt*.5f0) # v(t+Δt) = v(t) + 1/2*(a(t)+a(t+Δt))Δt
             acc[i, d] = new_acc # a = F/m             
             
-            # Gestione dei sistemi periodici
-            bounce = .8f0 # 1 per rimbalzi perfettamente elastici
+            # Gestione dei sistemi periodici            
             if periodic && restrict # Tipo "Pac-Man"
                 pos[i, d] = restrict_pos(pos[i, d], box_size)                     
             elseif !periodic && restrict # Rimbalza sulle pareti

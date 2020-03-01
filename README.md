@@ -1,3 +1,5 @@
+![](main/samples/sample.gif)
+[Link to Final Report](docs/ProjectReport)
 ---
 Enrico Verdolotti, 
 January/February 2020, 
@@ -143,17 +145,3 @@ ripresa in futuro.
 
 ---
 ---
-
-# Report
-
-### 1. Rivedere e riscrivere la versione seriale
-In scrittura...
-
-### 2. 
-
-### 3.
-
-### 4.
-
-### 5.
-

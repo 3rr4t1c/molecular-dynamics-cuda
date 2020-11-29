@@ -1,5 +1,9 @@
 ![](main/samples/sample.gif)
 [Link to Final Report](docs/ProjectReport)
+---  
+------
+This animation has been generated with the actual code, all the particles trajectories has been processed in parallel.
+
 ---
 Enrico Verdolotti, 
 January/February 2020, 
